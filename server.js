@@ -3,17 +3,18 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 import {
   usersContainer,
   ticketsContainer,
   repliesContainer,
+  dbReady,
   initializeDatabase
 } from './cosmosDb.js';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -24,6 +25,16 @@ app.use(express.json());
 // Logger middleware
 app.use((req, res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
+
+// DB readiness guard: return 503 on API routes if DB is not yet connected
+app.use(['/login', '/register', '/tickets'], (req, res, next) => {
+  if (!dbReady) {
+    return res.status(503).json({
+      error: 'Database not yet available. Please ensure COSMOS_ENDPOINT, COSMOS_KEY, and COSMOS_DATABASE are configured in Azure App Service settings, then restart the app.'
+    });
+  }
   next();
 });
 

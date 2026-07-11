@@ -3,58 +3,54 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const endpoint = process.env.COSMOS_ENDPOINT;
-const key = process.env.COSMOS_KEY;
-const databaseId = process.env.COSMOS_DATABASE;
+// Use exported 'let' so server.js gets live bindings after DB init
+export let usersContainer = null;
+export let ticketsContainer = null;
+export let repliesContainer = null;
+export let dbReady = false;
 
-if (!endpoint || !key || !databaseId) {
-  throw new Error('Missing required environment variables: COSMOS_ENDPOINT, COSMOS_KEY, COSMOS_DATABASE');
-}
+export async function initializeDatabase() {
+  const endpoint = process.env.COSMOS_ENDPOINT;
+  const key = process.env.COSMOS_KEY;
+  const databaseId = process.env.COSMOS_DATABASE;
 
-const client = new CosmosClient({ endpoint, key });
-const database = client.database(databaseId);
+  if (!endpoint || !key || !databaseId) {
+    console.error(
+      'WARNING: Missing Cosmos DB environment variables (COSMOS_ENDPOINT, COSMOS_KEY, COSMOS_DATABASE). ' +
+      'The server will run but API routes will return 503 until the variables are configured.'
+    );
+    return;
+  }
 
-// Container references
-const usersContainer = database.container('Users');
-const ticketsContainer = database.container('Tickets');
-const repliesContainer = database.container('Replies');
-
-/**
- * Initialize the Cosmos DB database and containers.
- * Creates them if they don't already exist.
- */
-async function initializeDatabase() {
   console.log('Initializing Azure Cosmos DB...');
 
-  // Create database if not exists
+  const client = new CosmosClient({ endpoint, key });
+  const database = client.database(databaseId);
+
   await client.databases.createIfNotExists({ id: databaseId });
   console.log(`  Database "${databaseId}" ready.`);
 
-  // Create containers if not exists with partition keys
   await database.containers.createIfNotExists({
     id: 'Users',
     partitionKey: { paths: ['/role'] }
   });
+  usersContainer = database.container('Users');
   console.log('  Container "Users" ready.');
 
   await database.containers.createIfNotExists({
     id: 'Tickets',
     partitionKey: { paths: ['/customerId'] }
   });
+  ticketsContainer = database.container('Tickets');
   console.log('  Container "Tickets" ready.');
 
   await database.containers.createIfNotExists({
     id: 'Replies',
     partitionKey: { paths: ['/ticketId'] }
   });
+  repliesContainer = database.container('Replies');
   console.log('  Container "Replies" ready.');
 
+  dbReady = true;
   console.log('Cosmos DB initialization complete.\n');
 }
-
-export {
-  usersContainer,
-  ticketsContainer,
-  repliesContainer,
-  initializeDatabase
-};
