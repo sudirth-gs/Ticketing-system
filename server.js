@@ -1,6 +1,11 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 import {
   usersContainer,
   ticketsContainer,
@@ -335,14 +340,25 @@ app.post('/tickets/:id/reply', async (req, res) => {
   }
 });
 
-// Initialize database and start listening
+// Serve React frontend build
+app.use(express.static(path.join(__dirname, 'dist')));
+
+// Catch-all: serve React app for any non-API route
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
+
+// Start server first, then initialize DB
+app.listen(PORT, () => {
+  console.log(`Backend Server listening at http://localhost:${PORT}`);
+});
+
+// Initialize database after server is already listening
 initializeDatabase()
   .then(() => {
-    app.listen(PORT, () => {
-      console.log(`Backend Server listening at http://localhost:${PORT}`);
-    });
+    console.log('Database ready.');
   })
   .catch((err) => {
-    console.error('Failed to initialize database:', err);
-    process.exit(1);
+    console.error('WARNING: Failed to initialize database. API calls may fail.', err.message);
+    // Do NOT exit — keep the server alive to serve the frontend
   });
